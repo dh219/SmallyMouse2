@@ -1,14 +1,10 @@
 ## Synopsis
 
-SmallyMouse2 is the AT90USB1287 firmware source code and KiCAD schematic/PCB design for the SmallyMouse2 project.
-
 Smalliermouse is a variation of SmallyMouse2 by D Henderson specificially designed for the Atari ST & Falcon to fit within the keyboard mouse plug bay.
 
 ## Motivation
 
-SmallyMouse2 is a project that creates a USB mouse adaptor for retro computers that use quadrature mouse input including the Acorn BBC Micro, Acorn Master series, Commodore Amiga, Atari ST, busmouse compatible computers and many more.  SmallyMouse2 provides both a generic mouse output header (for attaching mouse to retro computer cables) and an IDC connector suitable for use with Acorn 8-bit user-ports.  SmallyMouse2 also features a configurable quadrature rate limiter that prevents VIA overrun when in use with slower 8-bit machines.
-
-SmallyMouse2 supports both JTAG and USB bootloader programming.  The AT90USB1287 is pre-programmed by Atmel with the (FLIP) DFU bootloader; this bootloader is recognised by Atmel Studio as a programming device and can be used to flash the firmware to the board.
+USB plugs for modern (and particularly wireless) devices are so small theses days that, buy reducing the SmallyMouse2 footprint to its bare minimum would allow the entire mouse emulator to fit within the below-keyboard recess of the Atari ST range of computers.
 
 ## Installation
 
@@ -18,7 +14,7 @@ Please see http://www.waitingforfriday.com/?p=827 for detailed documentation abo
 
 ## Author
 
-SmallyMouse2 is written and maintained by Simon Inns
+SmallyMouse2 is written and maintained by Simon Inns. Smalliermouse, upon which it is based remains (C) Simon Inns with modifications by D Henderson 2019.
 
 ## License (Software)
 
