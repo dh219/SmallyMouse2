@@ -186,9 +186,26 @@ void initialiseHardware(void)
 	X2_DDR |= X2; // Output
 	Y1_DDR |= Y1; // Output
 	Y2_DDR |= Y2; // Output
+	/*
 	LB_DDR |= LB; // Output
 	MB_DDR |= MB; // Output
 	RB_DDR |= RB; // Output
+	// Set mouse button output pins to on
+	// Note: Mouse buttons are inverted, so this sets them to 'off'
+	//       from the host's perspective
+	LB_PORT |= LB; // Pin = 1 (on)
+	MB_PORT |= MB; // Pin = 1 (on)
+	RB_PORT |= RB; // Pin = 1 (on)
+	*/
+
+	// set the mouse buttons to input (high z)
+	LB_DDR &= ~LB; // 0 = input
+	MB_DDR &= ~MB; // 0 = input
+	RB_DDR &= ~RB; // 0 = input
+	LB_PORT &= ~LB; // Pin = 0 (off)
+	MB_PORT &= ~MB; // Pin = 0 (off)
+	RB_PORT &= ~RB; // Pin = 0 (off)
+	
 	
 	// Set quadrature output pins to zero
 	X1_PORT &= ~X1; // Pin = 0
@@ -196,12 +213,6 @@ void initialiseHardware(void)
 	Y1_PORT &= ~Y1; // Pin = 0
 	Y2_PORT &= ~Y2; // Pin = 0
 	
-	// Set mouse button output pins to on
-	// Note: Mouse buttons are inverted, so this sets them to 'off'
-	//       from the host's perspective
-	LB_PORT |= LB; // Pin = 1 (on)
-	MB_PORT |= MB; // Pin = 1 (on)
-	RB_PORT |= RB; // Pin = 1 (on)
 
 	// Set the rate limit configuration header to input
 	RATESW_DDR &= ~RATESW; // Input
@@ -356,16 +367,34 @@ void processMouse(void)
 		// Process mouse buttons ----------------------------------------------
 		
 		// Check for left mouse button
-		if ((MouseReport.Button & 0x01) == 0) LB_PORT |= LB; // Button on
-		else LB_PORT &= ~LB; // Button off
+		if ((MouseReport.Button & 0x01) == 0) {
+			LB_PORT &= ~LB; // Pin = 0 (off)
+			LB_DDR &= ~LB; // 0 = input
+		}
+		else {
+			LB_DDR |= LB; // 1 = output
+			LB_PORT &= ~LB; // Button low
+		}
 			
 		// Check for middle mouse button
-		if ((MouseReport.Button & 0x04) == 0) MB_PORT |= MB; // Button on
-		else MB_PORT &= ~MB; // Button off
+		if ((MouseReport.Button & 0x04) == 0){
+			MB_PORT &= ~MB; // Pin = 0 (off)
+			MB_DDR &= ~MB; // 0 = input
+		}
+		else{
+			MB_DDR |= MB; // 1 = output
+			MB_PORT &= ~MB; // Button low
+		}
 			
 		// Check for right mouse button
-		if ((MouseReport.Button & 0x02) == 0) RB_PORT |= RB; // Button on
-		else RB_PORT &= ~RB; // Button off
+		if ((MouseReport.Button & 0x02) == 0) {
+			RB_PORT &= ~RB; // Pin = 0 (off)
+			RB_DDR &= ~RB; // 0 = input
+		}
+		else {
+			RB_DDR |= RB; // 1 = output
+			RB_PORT &= ~RB; // Button low
+		}
 		
 		// Clear USB report processing activity on expansion port pin D0
 		E0_PORT &= ~E0; // Pin = 0
@@ -443,7 +472,7 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 	timerTopValue = ((10000 / timerTopValue) / 64) - 1;
 	
 	// If the 'Slow' configuration jumper is shorted; apply the quadrature rate limit
-	if ((RATESW_PIN & RATESW) == 0) {
+	if ( (RATESW_PIN & RATESW) == 0) {
 		// Rate limit is on
 		
 		// Rate limit is provided in hertz
