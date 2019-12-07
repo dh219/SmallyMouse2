@@ -56,6 +56,9 @@
 
 // Configuration ------------------------------------------------------------------------------------------------------
 
+// Scale denominator for high DPI correction. Set to 1 to disable, 3 == divide by three
+#define DPISCALE 3
+
 // Quadrature output frequency limit
 //
 // This setting limits the maximum frequency of the quadrature output towards the retro computer.
@@ -186,17 +189,7 @@ void initialiseHardware(void)
 	X2_DDR |= X2; // Output
 	Y1_DDR |= Y1; // Output
 	Y2_DDR |= Y2; // Output
-	/*
-	LB_DDR |= LB; // Output
-	MB_DDR |= MB; // Output
-	RB_DDR |= RB; // Output
-	// Set mouse button output pins to on
-	// Note: Mouse buttons are inverted, so this sets them to 'off'
-	//       from the host's perspective
-	LB_PORT |= LB; // Pin = 1 (on)
-	MB_PORT |= MB; // Pin = 1 (on)
-	RB_PORT |= RB; // Pin = 1 (on)
-	*/
+
 
 	// set the mouse buttons to input (high z)
 	LB_DDR &= ~LB; // 0 = input
@@ -414,6 +407,10 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 	
 	// Set the mouse movement direction and record the movement units
 	if (movementUnits > 0) {
+		if( DPISCALE > 1 ) {
+			movementUnits -= DPISCALE+1; // dpi scaling
+			movementUnits /= DPISCALE;
+		}
 		// Set the mouse direction to incrementing
 		if (axis == MOUSEX) mouseDirectionX = 1; else mouseDirectionY = 1;
 		
@@ -421,6 +418,10 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 		if (axis == MOUSEX) mouseDistanceX += movementUnits;
 		else mouseDistanceY += movementUnits;
 	} else {
+		if( DPISCALE > 1 ) {
+			movementUnits -= DPISCALE-1; // dpi scaling
+			movementUnits /= DPISCALE;
+		}
 		// Set the mouse direction to decrementing
 		if (axis == MOUSEX) mouseDirectionX = 0; else mouseDirectionY = 0;
 		
