@@ -57,7 +57,7 @@
 // Configuration ------------------------------------------------------------------------------------------------------
 
 // Scale denominator for high DPI correction. Set to 1 to disable, 3 == divide by three
-#define DPISCALE 3
+#define DPISCALE 2
 
 // Quadrature output frequency limit
 //
@@ -68,7 +68,7 @@
 // With no rate limit the quadrature output speed will reach a maximum of 3,906.25 Hz
 // For 8-bit machines it is recommended that the speed doesn't exceed 1,400 Hz.  This limit is
 // only applied if the 'slow' configuration jumper is shorted (i.e. on)
-#define Q_RATELIMIT 1400
+#define Q_RATELIMIT 500 // 500 seems good for my Falcon original was 1400
 
 // Quadrature output buffer limit
 //
@@ -404,12 +404,22 @@ void processMouse(void)
 uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 {
 	uint16_t timerTopValue = 0;
+	static int8_t skippedunits = 0;
 	
 	// Set the mouse movement direction and record the movement units
 	if (movementUnits > 0) {
-		if( DPISCALE > 1 ) {
-			movementUnits -= DPISCALE+1; // dpi scaling
-			movementUnits /= DPISCALE;
+		movementUnits /= DPISCALE;
+		if( movementUnits == 0  ) {// has been scaled away to zero
+			if( skippedunits >= DPISCALE ) {
+				movementUnits = 1;
+				skippedunits = 0;
+			}
+			else {
+				if( skippedunits < 0 ) {
+					skippedunits = 0;
+				}
+				skippedunits++;
+			}
 		}
 		// Set the mouse direction to incrementing
 		if (axis == MOUSEX) mouseDirectionX = 1; else mouseDirectionY = 1;
@@ -418,9 +428,18 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 		if (axis == MOUSEX) mouseDistanceX += movementUnits;
 		else mouseDistanceY += movementUnits;
 	} else {
-		if( DPISCALE > 1 ) {
-			movementUnits -= DPISCALE-1; // dpi scaling
-			movementUnits /= DPISCALE;
+		movementUnits /= DPISCALE;
+		if( movementUnits == 0  ) {// has been scaled away to zero
+			if( skippedunits <= -DPISCALE ) {
+				movementUnits = -1;
+				skippedunits = 0;
+			}
+			else {
+				if( skippedunits > 0 ) {
+					skippedunits = 0;
+				}
+				skippedunits--;
+			}
 		}
 		// Set the mouse direction to decrementing
 		if (axis == MOUSEX) mouseDirectionX = 0; else mouseDirectionY = 0;
@@ -433,7 +452,7 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 	// Apply the quadrature output buffer limit
 	if (axis == MOUSEX) {
 		if (mouseDistanceX > Q_BUFFERLIMIT) mouseDistanceX = Q_BUFFERLIMIT;
-	} else {
+		} else {
 		if (mouseDistanceY > Q_BUFFERLIMIT) mouseDistanceY = Q_BUFFERLIMIT;
 	}
 	
@@ -481,7 +500,7 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 		//
 		// Convert hertz into period in uS
 		// 1500 Hz = 1,000,000 / 1500 = 666.67 uS
-		// 
+		//
 		// Convert period into timer ticks (* 4 due to quadrature)
 		// 666.67 us / (64 * 4) = 2.6 ticks
 		//
