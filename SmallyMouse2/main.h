@@ -3,7 +3,7 @@
 
 	Main functions
     SmallyMouse2 - USB to quadrature mouse converter
-    Copyright (C) 2017 Simon Inns
+    Copyright (C) 2017-2020 Simon Inns
 
 	This file is part of SmallyMouse2.
 
@@ -71,10 +71,17 @@
 #define X1		(1 << 0)
 
 // Rate limit on/off switch (marked 'slow')
+/*
 #define RATESW_PORT	PORTA
 #define RATESW_PIN	PINA
 #define RATESW_DDR	DDRA
 #define RATESW		(1 << 4)
+*/
+#define RATESW_PORT	PORTD
+#define RATESW_PIN	PIND
+#define RATESW_DDR	DDRD
+#define RATESW		(1 << 7)
+
 
 // Expansion (Ian) header
 #define E0_PORT	PORTD
@@ -112,16 +119,25 @@
 #define E6_DDR	DDRD
 #define E6		(1 << 6)
 
-#define E7_PORT	PORTD
-#define E7_PIN	PIND
-#define E7_DDR	DDRD
-#define E7		(1 << 7)
+
+// E7 is now used as the DPISW header
+/*
+#define DPISW_PORT	PORTD
+#define DPISW_PIN	PIND
+#define DPISW_DDR	DDRD
+#define DPISW		(1 << 7)
+*/
+#define DPISW_PORT	PORTA
+#define DPISW_PIN	PINA
+#define DPISW_DDR	DDRA
+#define DPISW		(1 << 4)
+
 
 // Function prototypes
 void initialiseHardware(void);
 void initialiseTimers(void);
 void processMouse(void);
-uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis);
+uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis, bool limitRate, bool dpiDivide);
 
 // USB callback event handlers (LUFA)
 void EVENT_USB_Host_HostError(const uint8_t ErrorCode);

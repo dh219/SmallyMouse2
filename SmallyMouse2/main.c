@@ -3,7 +3,7 @@
 
 	Main functions
     SmallyMouse2 - USB to quadrature mouse converter
-    Copyright (C) 2017 Simon Inns
+    Copyright (C) 2017-2020 Simon Inns
 
 	This file is part of SmallyMouse2.
 
@@ -23,6 +23,11 @@
 	Email: simon.inns@gmail.com
 
 ************************************************************************/
+
+// Important notice:  If you port this firmware to another hardware design
+// it *will be* a derivative of the original and therefore you must pay attention
+// to the CC hardware licensing and release your hardware design as per the share-
+// alike license.  Keep it open! ...and yes, that includes you Commodore chaps.
 
 // System includes
 #include <avr/io.h>
@@ -56,9 +61,6 @@
 
 // Configuration ------------------------------------------------------------------------------------------------------
 
-// Scale denominator for high DPI correction. Set to 1 to disable, 3 == divide by three
-#define DPISCALE 2
-
 // Quadrature output frequency limit
 //
 // This setting limits the maximum frequency of the quadrature output towards the retro computer.
@@ -66,9 +68,9 @@
 // this causes spurious mouse movement.
 //
 // With no rate limit the quadrature output speed will reach a maximum of 3,906.25 Hz
-// For 8-bit machines it is recommended that the speed doesn't exceed 1,400 Hz.  This limit is
+// For 8-bit machines it is recommended that the speed doesn't exceed 500 Hz.  This limit is
 // only applied if the 'slow' configuration jumper is shorted (i.e. on)
-#define Q_RATELIMIT 500 // 500 seems good for my Falcon original was 1400
+#define Q_RATELIMIT 400
 
 // Quadrature output buffer limit
 //
@@ -78,6 +80,13 @@
 // movements to the quadrature output.  If the buffer reaches this value further USB movements
 // will be discarded
 #define Q_BUFFERLIMIT 300
+
+// DPI Divider
+//
+// Some USB mice have very high DPI which causes the quadrature rate to be too high (making the
+// mouse move too fast).  If the DPISW header is shorted the following constant will be used to 
+// divide the DPI rate to slow things down.  2 or 3 are reasonable values.
+#define DPI_DIVIDER 2
 
 // Interrupt Service Routines for quadrature output -------------------------------------------------------------------
 
@@ -105,21 +114,23 @@ ISR(TIMER0_COMPA_vect)
 {
 	// Process X output
 	if (mouseDistanceX > 0) {
+		// Change phase and range check
+		if (mouseDirectionX == 0) {
+			mouseEncoderPhaseX--;
+			if (mouseEncoderPhaseX < 0) mouseEncoderPhaseX = 3;
+			} else {
+			mouseEncoderPhaseX++;
+			if (mouseEncoderPhaseX > 3) mouseEncoderPhaseX = 0;
+		}
+		
 		// Set the output pins according to the current phase
 		if (mouseEncoderPhaseX == 0) X1_PORT |=  X1;	// Set X1 to 1
 		if (mouseEncoderPhaseX == 1) X2_PORT |=  X2;	// Set X2 to 1
 		if (mouseEncoderPhaseX == 2) X1_PORT &= ~X1;	// Set X1 to 0
 		if (mouseEncoderPhaseX == 3) X2_PORT &= ~X2;	// Set X2 to 0
-
-		// Change phase
-		if (mouseDirectionX == 0) mouseEncoderPhaseX--; else mouseEncoderPhaseX++;
 		
 		// Decrement the distance left to move
 		mouseDistanceX--;
-
-		// Range check the phase
-		if ((mouseDirectionX == 1) && (mouseEncoderPhaseX > 3)) mouseEncoderPhaseX = 0;
-		if ((mouseDirectionX == 0) && (mouseEncoderPhaseX < 0)) mouseEncoderPhaseX = 3;
 	}
 	
 	// Set the timer top value for the next interrupt
@@ -131,21 +142,23 @@ ISR(TIMER2_COMPA_vect)
 {
 	// Process Y output
 	if (mouseDistanceY > 0) {
+		// Change phase and range check
+		if (mouseDirectionY == 0) {
+			mouseEncoderPhaseY--;
+			if (mouseEncoderPhaseY < 0) mouseEncoderPhaseY = 3;
+			} else {
+			mouseEncoderPhaseY++;
+			if (mouseEncoderPhaseY > 3) mouseEncoderPhaseY = 0;
+		}
+				
 		// Set the output pins according to the current phase
 		if (mouseEncoderPhaseY == 3) Y1_PORT &= ~Y1;	// Set Y1 to 0
 		if (mouseEncoderPhaseY == 2) Y2_PORT &= ~Y2;	// Set Y2 to 0
 		if (mouseEncoderPhaseY == 1) Y1_PORT |=  Y1;	// Set Y1 to 1
 		if (mouseEncoderPhaseY == 0) Y2_PORT |=  Y2;	// Set Y2 to 1
 
-		// Change phase
-		if (mouseDirectionY == 0) mouseEncoderPhaseY--; else mouseEncoderPhaseY++;
-		
 		// Decrement the distance left to move
 		mouseDistanceY--;
-
-		// Range check the phase
-		if ((mouseDirectionY == 1) && (mouseEncoderPhaseY > 3)) mouseEncoderPhaseY = 0;
-		if ((mouseDirectionY == 0) && (mouseEncoderPhaseY < 0)) mouseEncoderPhaseY = 3;
 	}
 	
 	// Set the timer top value for the next interrupt
@@ -189,16 +202,6 @@ void initialiseHardware(void)
 	X2_DDR |= X2; // Output
 	Y1_DDR |= Y1; // Output
 	Y2_DDR |= Y2; // Output
-
-
-	// set the mouse buttons to input (high z)
-	LB_DDR &= ~LB; // 0 = input
-	MB_DDR &= ~MB; // 0 = input
-	RB_DDR &= ~RB; // 0 = input
-	LB_PORT &= ~LB; // Pin = 0 (off)
-	MB_PORT &= ~MB; // Pin = 0 (off)
-	RB_PORT &= ~RB; // Pin = 0 (off)
-	
 	
 	// Set quadrature output pins to zero
 	X1_PORT &= ~X1; // Pin = 0
@@ -206,10 +209,24 @@ void initialiseHardware(void)
 	Y1_PORT &= ~Y1; // Pin = 0
 	Y2_PORT &= ~Y2; // Pin = 0
 	
+	// Set mouse button output pins open drain
+	// (solves issues with some retro machines that
+	// don't like 5V to be sources from the pins)
+	LB_DDR &= ~LB; // 0 = input
+	MB_DDR &= ~MB; // 0 = input
+	RB_DDR &= ~RB; // 0 = input
+	LB_PORT &= ~LB; // Pin = 0 (off)
+	MB_PORT &= ~MB; // Pin = 0 (off)
+	RB_PORT &= ~RB; // Pin = 0 (off)
 
 	// Set the rate limit configuration header to input
 	RATESW_DDR &= ~RATESW; // Input
 	RATESW_PORT |= RATESW; // Turn on weak pull-up
+	
+	// Configure E7 on the expansion header to act as
+	// DPISW (since it is easily jumpered to 0V)	
+	DPISW_DDR &= ~DPISW; // Input
+	DPISW_PORT |= DPISW; // Turn on weak pull-up
 	
 	// Initialise the expansion (Ian) header
 	E0_DDR |= ~E0; // Output
@@ -219,7 +236,6 @@ void initialiseHardware(void)
 	E4_DDR |= ~E4; // Output
 	E5_DDR |= ~E5; // Output
 	E6_DDR |= ~E6; // Output
-	E7_DDR |= ~E7; // Output
 	
 	E0_PORT &= ~E0; // Pin = 0
 	E1_PORT &= ~E1; // Pin = 0
@@ -228,7 +244,6 @@ void initialiseHardware(void)
 	E4_PORT &= ~E4; // Pin = 0
 	E5_PORT &= ~E5; // Pin = 0
 	E6_PORT &= ~E6; // Pin = 0
-	E7_PORT &= ~E7; // Pin = 0
 	
 	// Initialise the LUFA USB stack
 	USB_Init();
@@ -246,9 +261,15 @@ void initialiseHardware(void)
 	Serial_CreateStream(NULL);
 
 	// Output some debug header information to the serial console
-	puts_P(PSTR(ESC_FG_YELLOW "SmallyMouse2 - Serial debug console\r\n" ESC_FG_WHITE));
-	puts_P(PSTR(ESC_FG_YELLOW "(c)2017 Simon Inns\r\n" ESC_FG_WHITE));
+	puts_P(PSTR(ESC_FG_YELLOW "SmallyMouse2 V1.3 - Serial debug console\r\n" ESC_FG_WHITE));
+	puts_P(PSTR(ESC_FG_YELLOW "(c)2017-2020 Simon Inns\r\n" ESC_FG_WHITE));
 	puts_P(PSTR(ESC_FG_YELLOW "http://www.waitingforfriday.com\r\n" ESC_FG_WHITE));
+	
+	// Now report the status of the various configuration switches
+	if ((RATESW_PIN & RATESW) == 0) puts_P(PSTR("Rate limit switch is ON\r\n"));
+	else puts_P(PSTR("Rate limit switch is OFF\r\n"));
+	if ((DPISW_PIN & DPISW) == 0) puts_P(PSTR("DPI divide switch is ON\r\n"));
+	else puts_P(PSTR("DPI divide switch is OFF\r\n"));
 }
 
 // Initialise the ISR timers
@@ -299,10 +320,18 @@ void initialiseTimers(void)
 void processMouse(void)
 {
 	USB_MouseReport_Data_t MouseReport;
+	bool limitRate = true;
+	bool dpiDivide = false;
 		
 	// Only process the mouse if a mouse is attached to the USB port
 	if (USB_HostState != HOST_STATE_Configured)	return;
-
+	
+	// Get the state of the rate limiting (slow) header
+	if ((RATESW_PIN & RATESW) == 0) limitRate = false;
+	
+	// Get the state of the DPI divider header
+	if ((DPISW_PIN & DPISW) == 0) dpiDivide = true;
+	
 	// Select mouse data pipe
 	Pipe_SelectPipe(MOUSE_DATA_IN_PIPE);
 
@@ -346,45 +375,59 @@ void processMouse(void)
 		//
 		// X and Y have a range of -127 to +127
 		
-		// If the mouse movement changes direction then disregard any remaining
-		// movement units in the previous direction.
-		if (MouseReport.X > 0 && mouseDirectionX == 0) mouseDistanceX = 0;
-		if (MouseReport.X < 0 && mouseDirectionX == 1) mouseDistanceX = 0;
-		if (MouseReport.Y > 0 && mouseDirectionY == 0) mouseDistanceY = 0;
-		if (MouseReport.Y < 0 && mouseDirectionY == 1) mouseDistanceY = 0;
+		// If the mouse movement changes X direction then disregard any remaining movement
+		if (MouseReport.X > 0 && mouseDirectionX == 0) {
+			mouseDistanceX = 0;
+			mouseDirectionX = 1;
+		} else if (MouseReport.X < 0 && mouseDirectionX == 1) {
+			mouseDistanceX = 0;
+			mouseDirectionX = 0;
+		}
 		
-		// Process mouse X movement -------------------------------------------
-		if (MouseReport.X != 0) xTimerTop = processMouseMovement(MouseReport.X, MOUSEX);
-		if (MouseReport.Y != 0) yTimerTop = processMouseMovement(MouseReport.Y, MOUSEY);
+		// If the mouse movement changes Y direction then disregard any remaining movement
+		if (MouseReport.Y > 0 && mouseDirectionY == 0) {
+			mouseDistanceY = 0;
+			mouseDirectionY = 1;
+			} else if (MouseReport.Y < 0 && mouseDirectionY == 1) {
+			mouseDistanceY = 0;
+			mouseDirectionY = 0;
+		}
+		
+		// Process mouse X and Y movement -------------------------------------
+		xTimerTop = processMouseMovement(MouseReport.X, MOUSEX, limitRate, dpiDivide);
+		yTimerTop = processMouseMovement(MouseReport.Y, MOUSEY, limitRate, dpiDivide);
 		
 		// Process mouse buttons ----------------------------------------------
 		
 		// Check for left mouse button
 		if ((MouseReport.Button & 0x01) == 0) {
-			LB_PORT &= ~LB; // Pin = 0 (off)
-			LB_DDR &= ~LB; // 0 = input
-		}
-		else {
+			// Open-drain
+			LB_PORT &= ~LB;
+			LB_DDR &= ~LB;
+		} else {
+			// Set to 0V
 			LB_DDR |= LB; // 1 = output
 			LB_PORT &= ~LB; // Button low
 		}
 			
 		// Check for middle mouse button
-		if ((MouseReport.Button & 0x04) == 0){
-			MB_PORT &= ~MB; // Pin = 0 (off)
-			MB_DDR &= ~MB; // 0 = input
-		}
-		else{
+		if ((MouseReport.Button & 0x04) == 0) {
+			// Open-drain
+			MB_PORT &= ~MB;
+			MB_DDR &= ~MB;
+		} else {
+			// Set to 0V
 			MB_DDR |= MB; // 1 = output
 			MB_PORT &= ~MB; // Button low
 		}
 			
 		// Check for right mouse button
 		if ((MouseReport.Button & 0x02) == 0) {
-			RB_PORT &= ~RB; // Pin = 0 (off)
-			RB_DDR &= ~RB; // 0 = input
-		}
-		else {
+			// Open-drain
+			RB_PORT &= ~RB;
+			RB_DDR &= ~RB;
+		} else {
+			// Set to 0V
 			RB_DDR |= RB; // 1 = output
 			RB_PORT &= ~RB; // Button low
 		}
@@ -401,58 +444,75 @@ void processMouse(void)
 }
 
 // Process the mouse movement units from the USB report
-uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
+uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis, bool limitRate, bool dpiDivide)
 {
 	uint16_t timerTopValue = 0;
-	static int8_t skippedunits = 0;
-	
+	static int8_t skippedunits[2] = {0,0};
+
 	// Set the mouse movement direction and record the movement units
 	if (movementUnits > 0) {
-		movementUnits /= DPISCALE;
-		if( movementUnits == 0  ) {// has been scaled away to zero
-			if( skippedunits >= DPISCALE ) {
-				movementUnits = 1;
-				skippedunits = 0;
-			}
-			else {
-				if( skippedunits < 0 ) {
-					skippedunits = 0;
+		// Moving in the positive direction
+		
+		// Apply DPI limiting if required
+		if (dpiDivide) {
+			movementUnits /= DPI_DIVIDER;
+//			if (movementUnits < 1) movementUnits = 1;
+
+			// avoid inverse mouse acceleration effect where slow movement is at full DPI -- dh219
+			if( movementUnits == 0  ) {// has been scaled away to zero
+				if( skippedunits[axis] >= DPI_DIVIDER ) {
+					movementUnits = 1;
+					skippedunits[axis] = 0;
 				}
-				skippedunits++;
+				else {
+					if( skippedunits[axis] < 0 ) {
+						skippedunits[axis] = 0;
+					}
+					skippedunits[axis]++;
+				}
 			}
+
+
 		}
-		// Set the mouse direction to incrementing
-		if (axis == MOUSEX) mouseDirectionX = 1; else mouseDirectionY = 1;
 		
 		// Add the movement units to the quadrature output buffer
 		if (axis == MOUSEX) mouseDistanceX += movementUnits;
 		else mouseDistanceY += movementUnits;
-	} else {
-		movementUnits /= DPISCALE;
-		if( movementUnits == 0  ) {// has been scaled away to zero
-			if( skippedunits <= -DPISCALE ) {
-				movementUnits = -1;
-				skippedunits = 0;
-			}
-			else {
-				if( skippedunits > 0 ) {
-					skippedunits = 0;
+	} else if (movementUnits < 0) {
+		// Moving in the negative direction
+		
+		// Apply DPI limiting if required
+		if (dpiDivide) {
+			movementUnits /= DPI_DIVIDER;
+//			if (movementUnits > -1) movementUnits = -1;
+
+			// avoid inverse mouse acceleration effect where slow movement is at full DPI -- dh219
+			if( movementUnits == 0  ) {// has been scaled away to zero
+				if( skippedunits[axis] <= -DPI_DIVIDER ) {
+					movementUnits = -1;
+					skippedunits[axis] = 0;
 				}
-				skippedunits--;
+				else {
+					if( skippedunits[axis] > 0 ) {
+						skippedunits[axis] = 0;
+					}
+					skippedunits[axis]--;
+				}
 			}
 		}
-		// Set the mouse direction to decrementing
-		if (axis == MOUSEX) mouseDirectionX = 0; else mouseDirectionY = 0;
 		
 		// Add the movement units to the quadrature output buffer
-		if (axis == MOUSEX) mouseDistanceX += abs(movementUnits);
-		else mouseDistanceY += abs(movementUnits);
+		if (axis == MOUSEX) mouseDistanceX += -movementUnits;
+		else mouseDistanceY += -movementUnits;
+	} else {
+		if (axis == MOUSEX) mouseDistanceX = 0;
+		else mouseDistanceY = 0;
 	}
 	
 	// Apply the quadrature output buffer limit
 	if (axis == MOUSEX) {
 		if (mouseDistanceX > Q_BUFFERLIMIT) mouseDistanceX = Q_BUFFERLIMIT;
-		} else {
+	} else {
 		if (mouseDistanceY > Q_BUFFERLIMIT) mouseDistanceY = Q_BUFFERLIMIT;
 	}
 	
@@ -489,10 +549,11 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 	//   timerTopValue = timerTopValue / 64;
 	//   timerTopValue = timerTopValue - 1;
 	
-	timerTopValue = ((10000 / timerTopValue) / 64) - 1;
-	
+	if (timerTopValue > 0) timerTopValue = ((10000 / timerTopValue) / 64) - 1;
+	else timerTopValue = 0; // Avoid divide by zero
+		
 	// If the 'Slow' configuration jumper is shorted; apply the quadrature rate limit
-	if ( (RATESW_PIN & RATESW) == 0) {
+	if (limitRate) {
 		// Rate limit is on
 		
 		// Rate limit is provided in hertz
@@ -500,7 +561,7 @@ uint8_t processMouseMovement(int8_t movementUnits, uint8_t axis)
 		//
 		// Convert hertz into period in uS
 		// 1500 Hz = 1,000,000 / 1500 = 666.67 uS
-		//
+		// 
 		// Convert period into timer ticks (* 4 due to quadrature)
 		// 666.67 us / (64 * 4) = 2.6 ticks
 		//
