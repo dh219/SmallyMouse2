@@ -79,14 +79,14 @@
 // to move after the USB mouse has stopped).  This setting limits the maximum number of buffered
 // movements to the quadrature output.  If the buffer reaches this value further USB movements
 // will be discarded
-#define Q_BUFFERLIMIT 300
+#define Q_BUFFERLIMIT 100
 
 // DPI Divider
 //
 // Some USB mice have very high DPI which causes the quadrature rate to be too high (making the
 // mouse move too fast).  If the DPISW header is shorted the following constant will be used to 
 // divide the DPI rate to slow things down.  2 or 3 are reasonable values.
-#define DPI_DIVIDER 2
+#define DPI_DIVIDER 3
 
 // Interrupt Service Routines for quadrature output -------------------------------------------------------------------
 
